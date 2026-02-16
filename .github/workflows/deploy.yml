@@ -1,0 +1,85 @@
+name: Manual Deploy to Server
+
+# ------------------------------------------------------------------
+# TRIGGERS
+# ------------------------------------------------------------------
+on:
+  workflow_dispatch: # Trigger manually via GitHub UI
+
+# ------------------------------------------------------------------
+# JOBS
+# ------------------------------------------------------------------
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout the infrastructure code (docker-compose.yml + nginx folder)
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Transfer files from GitHub Runner to EC2 Server via SCP
+      - name: Copy files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          # The destination path on the remote server
+          target: "/home/ubuntu/secure-docs-deploy"
+          # Files/Folders to copy from the repository
+          source: "docker-compose.yml,nginx/"
+
+      # 3. Connect via SSH to execute deployment commands
+      - name: SSH and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Navigate to the project directory
+            cd /home/ubuntu/secure-docs-deploy
+
+            # -------------------------------------------------------
+            # Dynamic .env Injection 
+            # -------------------------------------------------------
+            # We explicitly create the .env file on the remote server
+            # because GitHub Secrets are not automatically available to Docker.
+            echo "Creating .env file..."
+            
+            # Note: '>' overwrites the file (creates new), '>>' appends to it.
+            
+            # Docker Hub Credentials
+            echo "DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}" > .env
+            
+            # Database Configuration
+            echo "APP_DB_NAME=${{ secrets.APP_DB_NAME }}" >> .env
+            echo "APP_DB_USER=${{ secrets.APP_DB_USER }}" >> .env
+            echo "APP_DB_PASSWORD=${{ secrets.APP_DB_PASSWORD }}" >> .env
+            
+            # Keycloak Configuration
+            echo "KC_DB_USER=${{ secrets.KC_DB_USER }}" >> .env
+            echo "KC_DB_PASSWORD=${{ secrets.KC_DB_PASSWORD }}" >> .env
+            echo "KC_ADMIN_USER=${{ secrets.KC_ADMIN_USER }}" >> .env
+            echo "KC_ADMIN_PASSWORD=${{ secrets.KC_ADMIN_PASSWORD }}" >> .env
+            echo "AUTH_DOMAIN_NAME=${{ secrets.AUTH_DOMAIN_NAME }}" >> .env
+            
+            # AWS Configuration
+            echo "AWS_ACCESS_KEY=${{ secrets.AWS_ACCESS_KEY }}" >> .env
+            echo "AWS_SECRET_KEY=${{ secrets.AWS_SECRET_KEY }}" >> .env
+            echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> .env
+            echo "AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}" >> .env
+
+            # -------------------------------------------------------
+            # Docker Execution 
+            # -------------------------------------------------------
+            echo "Pulling latest images..."
+            sudo docker compose pull
+
+            echo "Restarting services..."
+            # Stop old containers and start new ones in detached mode
+            sudo docker compose down
+            sudo docker compose up -d --remove-orphans
+            
+            echo "Deployment Successful! 🟢"
