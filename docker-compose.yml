@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # ------------------------------------------------
+  # 1. Project Database (PostgreSQL)
+  # ------------------------------------------------
+  postgres_app:
+    image: postgres:15
+    container_name: notes_db_container
+    environment:
+      POSTGRES_DB: ${APP_DB_NAME}
+      POSTGRES_USER: ${APP_DB_USER}
+      POSTGRES_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - app_db_data:/var/lib/postgresql/data
+    restart: always
+
+  # ------------------------------------------------
+  # 2. Keycloak Database
+  # ------------------------------------------------
+  postgres_keycloak:
+    image: postgres:15
+    container_name: keycloak_db_container
+    environment:
+      POSTGRES_DB: keycloak_db
+      POSTGRES_USER: ${KC_DB_USER}
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD}
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    restart: always
+
+  # ------------------------------------------------
+  # 3. Keycloak (Auth Server)
+  # ------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0
+    container_name: notes_keycloak
+
+    # Production Mode
+    command: start
+
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres_keycloak:5432/keycloak_db
+      KC_DB_USERNAME: ${KC_DB_USER}
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+
+      # Hostname & Proxy Settings
+      KC_HOSTNAME: ${AUTH_DOMAIN_NAME}
+      KC_HOSTNAME_STRICT: "true"
+      KC_HOSTNAME_STRICT_HTTPS: "true"
+      KC_PROXY: edge
+
+      # Enable Internal HTTP (To talk with Nginx Gateway)
+      KC_HTTP_ENABLED: "true"
+
+      # Admin Credentials (Injected securely)
+      KEYCLOAK_ADMIN: ${KC_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
+
+    depends_on:
+      - postgres_keycloak
+    restart: always
+
+  # ------------------------------------------------
+  # 4. Backend (Spring Boot)
+  # ------------------------------------------------
+  notes_backend:
+    # Pulls the image from your Docker Hub
+    image: ${DOCKERHUB_USERNAME}/secure-docs-backend:latest
+    container_name: notes_backend_container
+    
+    # Ensures it always checks for a newer image digest
+    pull_policy: always
+    environment:
+
+    # --- Database Connection (Injected) ---
+      - APP_DB_URL=jdbc:postgresql://postgres_app:5432/${APP_DB_NAME}
+      - APP_DB_USERNAME=${APP_DB_USER}
+      - APP_DB_PASSWORD=${APP_DB_PASSWORD}
+
+    # --- AWS S3 Keys (Mapped from GitHub Secrets/Server Env) ---      
+      - AWS_ACCESS_KEY=${AWS_ACCESS_KEY}
+      - AWS_SECRET_KEY=${AWS_SECRET_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+
+
+      # --- Keycloak Config ---
+      # External URL (Browser access)
+      # JWT Issuer (Must be HTTPS as Keycloak is behind SSL)
+      - AUTH_ISSUER_URI=https://${AUTH_DOMAIN_NAME}/realms/notes-realm
+      
+      # Internal URL (Server-to-Server communication)
+      - AUTH_JWK_URI=http://keycloak:8080/realms/notes-realm/protocol/openid-connect/certs
+
+    depends_on:
+      - postgres_app
+      - keycloak
+    restart: always
+
+  # ------------------------------------------------
+  # 5. Frontend (Angular)
+  # ------------------------------------------------
+  notes_frontend:
+
+    # Pulls the image from your Docker Hub
+    image: ${DOCKERHUB_USERNAME}/secure-docs-frontend:latest
+    container_name: notes_frontend_container
+    pull_policy: always
+
+
+    # No ports mapped here. The Main Nginx Gateway will route traffic to this container.
+    depends_on:
+      - notes_backend
+    restart: always
+
+  # ------------------------------------------------
+  # 6. Nginx (Main Gateway / Reverse Proxy)
+  # ------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: notes_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+    
+      # Maps the local config file to the container
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      
+      # SSL Certificates
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - notes_backend
+      - notes_frontend
+      - keycloak
+    restart: always
+
+volumes:
+  app_db_data:
+  keycloak_db_data:
+
