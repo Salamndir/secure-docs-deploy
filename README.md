@@ -1,68 +1,79 @@
-
-
-
 # Secure Docs — Infrastructure & Deployment
 
 > **Cloud-agnostic deployment template** for a containerized full-stack application.
 > Manages orchestration, secrets injection, and CI/CD pipelines separately from application code.
 
-## Strategy
-The deployment pipeline follows a **"Build Once, Run Anywhere"** strategy using Docker Hub as the artifact registry.
+---
 
-- **Backend & Frontend Repos:** Strictly responsible for **CI** (Building Docker images and pushing them to the registry). They know nothing about the server.
-- **Deployment Repo (This Repo):** Strictly responsible for **CD** (Runtime configuration, Docker Compose orchestration, and Server management).
+## Strategy
+
+The pipeline follows a **"Build Once, Run Anywhere"** model using Docker Hub as the artifact registry.
+
+| Repository | Responsibility |
+|---|---|
+| `secure-docs-backend` | CI only — builds and pushes Docker image |
+| `secure-docs-frontend` | CI only — builds and pushes Docker image |
+| `secure-docs-deploy` *(this repo)* | CD only — orchestration, secrets, server management |
+
+---
 
 ## Architecture
 
-The system runs on a **Docker Compose** orchestrated environment within an AWS EC2 instance. The entire stack is isolated inside a private bridge network, with Nginx acting as the only entry point.
-
-
+```mermaid
 graph TD
-    subgraph CI_CD_Pipeline ["CI/CD Pipeline"]
-        Dev[Developer] -->|Push Code| GH[GitHub Actions]
-        GH -->|Build & Push| Hub[Docker Hub]
+    subgraph CI ["CI Pipeline (GitHub Actions)"]
+        Dev[Developer] -->|git push| GH[GitHub Actions]
+        GH -->|Build and Push Image| Hub[Docker Hub]
     end
 
-    subgraph Runtime_Environment ["AWS EC2 (t2.micro)"]
-        SSH[SSH Connection] -->|Inject Secrets| EnvFile[.env]
-        Hub -.->|Pull Optimized Images| Compose[Docker Compose]
-        EnvFile --> Compose
+    subgraph EC2 ["AWS EC2 t2.micro"]
+        subgraph CD ["CD Pipeline"]
+            Trigger[Manual Trigger] -->|SSH| Inject[Inject Secrets to .env]
+            Hub -->|docker compose pull| Compose[Docker Compose]
+            Inject --> Compose
+        end
 
-        subgraph Docker_Network ["Internal Bridge Network"]
-            Compose --> Gateway[Nginx Gateway]
-            Gateway -->|Reverse Proxy| Frontend[Angular Container]
-            Gateway -->|Reverse Proxy| Backend[Spring Boot Container]
-            Gateway -->|Reverse Proxy| Keycloak[Auth Container]
+        subgraph Network ["Internal Bridge Network"]
+            Compose --> Nginx[Nginx Gateway]
+            Nginx -->|/| Frontend[Angular Container]
+            Nginx -->|/api| Backend[Spring Boot Container]
+            Nginx -->|/auth| Keycloak[Keycloak Container]
             Backend --> DB[(PostgreSQL)]
             Keycloak --> DB
         end
     end
+```
 
+---
 
+## Design Decisions
 
-Design Decisions
-1. Why a separate deployment repo?
-To achieve true Cloud Agnosticism.
+**1. Why a separate deployment repo?**
 
-If we decide to switch from AWS EC2 to Oracle Cloud or a VPS tomorrow, we only need to update this repository.
+Application repos are cloud-agnostic — they only produce Docker images.
+Switching from AWS EC2 to any other provider requires changes only here.
 
-The application source code (Spring Boot / Angular) remains untouched, as it interacts only with Docker, not the underlying server.
+**2. Why offload builds to GitHub Actions?**
 
-2. Why offload builds to GitHub Actions?
-While a t2.micro (1GB RAM) could build the project using swap memory, it would be slow and inefficient.
-I adopted a Runtime-Only strategy:
+A t2.micro (1GB RAM) is not suited for Maven or NPM compilation.
+GitHub Actions handles the heavy build step; the server only runs `docker compose up`.
 
-GitHub Actions handles the heavy compilation (Maven/NPM) and pushes optimized images to Docker Hub.
+**3. Secrets handling**
 
-The server simply pulls and runs the final artifacts via Docker Compose, ensuring zero-downtime deployments and minimal resource usage.
+Secrets are injected via SSH at deploy time into a `.env` file consumed by Docker Compose.
+They are never stored in Git or Docker images.
 
-3. Secrets Handling
-Secrets are injected via SSH at deploy time directly into a transient .env file used by Docker Compose. They are never stored in Git or Docker images.
+---
 
-Deployment Workflow
-Manual trigger via GitHub Actions → SSH Connection → Inject Secrets → docker compose pull → docker compose up -d
+## Deployment
 
-Related Repositories
-Backend: secure-docs-backend (https://github.com/Salamndir/secure-docs-backend) (Builds & Pushes Docker Image)
+```
+Manual trigger → GitHub Actions → SSH → Inject secrets → docker compose pull → docker compose up -d
+```
 
-Frontend: secure-docs-frontend (https://github.com/Salamndir/secure-docs-frontend) (Builds & Pushes Docker Image)
+---
+
+## Related Repositories
+
+- [secure-docs-backend](https://github.com/Salamndir/secure-docs-backend) — Spring Boot API
+- [secure-docs-frontend](https://github.com/Salamndir/secure-docs-frontend) — Angular SPA
