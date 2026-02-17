@@ -16,7 +16,7 @@ The deployment pipeline follows a **"Build Once, Run Anywhere"** strategy using 
 
 The system runs on a **Docker Compose** orchestrated environment within an AWS EC2 instance. The entire stack is isolated inside a private bridge network, with Nginx acting as the only entry point.
 
-```mermaid
+
 graph TD
     subgraph CI_CD_Pipeline ["CI/CD Pipeline"]
         Dev[Developer] -->|Push Code| GH[GitHub Actions]
