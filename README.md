@@ -18,17 +18,17 @@ The system runs on a **Docker Compose** orchestrated environment within an AWS E
 
 ```mermaid
 graph TD
-    subgraph CI_CD_Pipeline [CI/CD Pipeline]
+    subgraph CI_CD_Pipeline ["CI/CD Pipeline"]
         Dev[Developer] -->|Push Code| GH[GitHub Actions]
         GH -->|Build & Push| Hub[Docker Hub]
     end
 
-    subgraph Runtime_Environment [AWS EC2 (t2.micro)]
+    subgraph Runtime_Environment ["AWS EC2 (t2.micro)"]
         SSH[SSH Connection] -->|Inject Secrets| EnvFile[.env]
         Hub -.->|Pull Optimized Images| Compose[Docker Compose]
         EnvFile --> Compose
 
-        subgraph Docker_Network [Internal Bridge Network]
+        subgraph Docker_Network ["Internal Bridge Network"]
             Compose --> Gateway[Nginx Gateway]
             Gateway -->|Reverse Proxy| Frontend[Angular Container]
             Gateway -->|Reverse Proxy| Backend[Spring Boot Container]
