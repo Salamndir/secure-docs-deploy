@@ -68,7 +68,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
@@ -115,7 +115,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
@@ -162,7 +162,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
