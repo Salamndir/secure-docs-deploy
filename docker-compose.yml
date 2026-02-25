@@ -54,6 +54,9 @@ services:
       # Enable Internal HTTP (To talk with Nginx Gateway)
       KC_HTTP_ENABLED: "true"
 
+      # ENABLE METRICS FOR PROMETHEUS SCRAPING
+      KC_METRICS_ENABLED: "true"
+
       # Admin Credentials (Injected securely)
       KEYCLOAK_ADMIN: ${KC_ADMIN_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD}
@@ -61,6 +64,15 @@ services:
     depends_on:
       - postgres_keycloak
     restart: always
+    # SEND LOGS TO LOKI VIA OTLP CONTAINER 
+    logging:
+      driver: "loki"
+      options:
+        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-retries: "2"
+        loki-max-backoff: "800ms"
+        loki-timeout: "1s"
+
 
   # ------------------------------------------------
   # 4. Backend (Spring Boot)
@@ -97,7 +109,16 @@ services:
     depends_on:
       - postgres_app
       - keycloak
+      - observability
     restart: always
+    # SEND LOGS TO LOKI VIA OTLP CONTAINER
+    logging:
+      driver: "loki"
+      options:
+        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-retries: "2"
+        loki-max-backoff: "800ms"
+        loki-timeout: "1s"
 
   # ------------------------------------------------
   # 5. Frontend (Angular)
@@ -137,8 +158,55 @@ services:
       - notes_frontend
       - keycloak
     restart: always
+    # SEND LOGS TO LOKI VIA OTLP CONTAINER 
+    logging:
+      driver: "loki"
+      options:
+        loki-url: "http://host.docker.internal:3100/loki/api/v1/push"
+        loki-retries: "2"
+        loki-max-backoff: "800ms"
+        loki-timeout: "1s"
+
+
+  # ═══════════════════════════════════════════════════════════
+  # 7. Observability Stack (All-in-One LGTM)
+  # ═══════════════════════════════════════════════════════════
+  observability:
+    image: grafana/otel-lgtm:0.19.0 # All-in-One with Grafana, Prometheus, and OpenTelemetry Collector
+    container_name: observability
+    ports:
+      # Removed 3000 mapping here because Nginx will handle it securely
+      - "4318:4318"   # OTLP HTTP port for Spring Boot to push metrics/traces
+      - "3100:3100"   # Exposed temporarily to allow Docker Logging Driver to push logs
+    volumes:
+      # Prometheus config to scrape Keycloak & Node Exporter
+      - ./monitoring/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+      - lgtm_data:/data # Persist Dashboards and Metrics
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin # CHANGE THIS LATER!
+    extra_hosts:
+      - "host.docker.internal:host-gateway" # Access host network for node-exporter
+    restart: unless-stopped
+
+
+  # ═══════════════════════════════════════════════════════════
+  # 8. Host Metrics Exporter (Ubuntu Monitor)
+  # ═══════════════════════════════════════════════════════════
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+    # No ports exposed to internet. Accessible via internal network to 'observability'
+    restart: unless-stopped
 
 volumes:
   app_db_data:
   keycloak_db_data:
+  lgtm_data: # NEW VOLUME FOR OBSERVABILITY
 

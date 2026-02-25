@@ -1,0 +1,33 @@
+# =====================================================================
+# Global Configuration
+# =====================================================================
+global:
+  # How often Prometheus should scrape (pull) data from the targets
+  scrape_interval: 15s 
+  # How often Prometheus should evaluate alert rules
+  evaluation_interval: 15s 
+
+# =====================================================================
+# Scrape Configurations (The targets Prometheus will pull data from)
+# =====================================================================
+scrape_configs:
+
+  # -------------------------------------------------------------------
+  # 1. Node Exporter (Monitors the Linux Ubuntu VPS - CPU, RAM, Disk)
+  # -------------------------------------------------------------------
+  - job_name: 'ubuntu-host-metrics'
+    static_configs:
+      # 'host.docker.internal' routes the traffic from inside the Docker 
+      # container to the host machine's port 9100 where Node Exporter runs.
+      - targets: ['host.docker.internal:9100']
+
+  # -------------------------------------------------------------------
+  # 2. Keycloak (Monitors the Authentication Server)
+  # -------------------------------------------------------------------
+  - job_name: 'keycloak-metrics'
+    # The HTTP path where Keycloak exposes its metrics
+    metrics_path: '/metrics'
+    static_configs:
+      # 'notes_keycloak' is the exact container_name from docker-compose.yml
+      # Port 8080 is Keycloak's internal HTTP port.
+      - targets: ['notes_keycloak:8080']

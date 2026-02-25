@@ -28,7 +28,7 @@ jobs:
           # The destination path on the remote server
           target: "/home/ubuntu/secure-docs-deploy"
           # Files/Folders to copy from the repository
-          source: "docker-compose.yml,nginx/"
+          source: "docker-compose.yml,nginx/,monitoring/"
 
       # 3. Connect via SSH to execute deployment commands
       - name: SSH and Deploy
@@ -40,6 +40,20 @@ jobs:
           script: |
             # Navigate to the project directory
             cd /home/ubuntu/secure-docs-deploy
+
+            
+
+            # -------------------------------------------------------
+            # 1. Observability Prerequisites (Loki Driver)
+            # -------------------------------------------------------
+            echo "Checking and installing Loki Docker Driver..."
+            if ! sudo docker plugin inspect loki >/dev/null 2>&1; then
+              echo "Installing Loki driver..."
+              sudo docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
+            else
+              echo "Loki driver already installed."
+            fi
+
 
             # -------------------------------------------------------
             # Dynamic .env Injection 
