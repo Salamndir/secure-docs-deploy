@@ -27,6 +27,7 @@ scrape_configs:
   - job_name: 'keycloak-metrics'
     # The HTTP path where Keycloak exposes its metrics
     metrics_path: '/metrics'
+    # scrape_interval: 3s # Keycloak metrics don't change as rapidly, so we can scrape less frequently
     static_configs:
       # 'notes_keycloak' is the exact container_name from docker-compose.yml
       # Port 8080 is Keycloak's internal HTTP port.

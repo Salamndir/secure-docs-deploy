@@ -176,8 +176,8 @@ services:
     container_name: observability
     ports:
       # Removed 3000 mapping here because Nginx will handle it securely
-      - "4318:4318"   # OTLP HTTP port for Spring Boot to push metrics/traces
-      - "3100:3100"   # Exposed temporarily to allow Docker Logging Driver to push logs
+      # - "4318:4318"   # OTLP HTTP port for Spring Boot to push metrics/traces
+      - "127.0.0.1:3100:3100"  # Localhost (127.0.0.1) Exposed temporarily to allow Docker Logging Driver to push logs
     volumes:
       # Prometheus config to scrape Keycloak & Node Exporter
       - ./monitoring/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
