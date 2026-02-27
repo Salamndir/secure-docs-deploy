@@ -32,3 +32,19 @@ scrape_configs:
       # 'notes_keycloak' is the exact container_name from docker-compose.yml
       # Port 8080 is Keycloak's internal HTTP port.
       - targets: ['notes_keycloak:8080']
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # # (Loki)  Not Now
+  # - job_name: 'loki'
+  #   static_configs:
+  #     - targets: ['localhost:3100'] 
+
+  # #(Tempo) Not Now2
+  # - job_name: 'tempo'
+  #   static_configs:
+  #     - targets: ['localhost:3200']
+
+
