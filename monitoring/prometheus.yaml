@@ -43,7 +43,8 @@ scrape_configs:
     static_configs:
       # Use the container name exactly as defined in docker-compose
       - targets: ['notes_backend_container:8080']
-
+        labels:
+          application: 'notes-backend'
 
 
 
