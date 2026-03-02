@@ -80,7 +80,7 @@ services:
   notes_backend:
     # Pulls the image from your Docker Hub
     image: ${DOCKERHUB_USERNAME}/secure-docs-backend:latest
-    container_name: notes_backend_container
+    container_name: notes-backend-container
     
     # Ensures it always checks for a newer image digest
     pull_policy: always
