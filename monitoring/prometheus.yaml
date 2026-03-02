@@ -33,9 +33,23 @@ scrape_configs:
       # Port 8080 is Keycloak's internal HTTP port.
       - targets: ['notes_keycloak:8080']
 
-  - job_name: 'prometheus'
+
+  # =====================================================================
+  # 3. Spring Boot Backend (NEW: Pulling classic metrics for Dashboard 4701)
+  # =====================================================================
+
+  - job_name: 'spring-boot-metrics'
+    metrics_path: '/actuator/prometheus'
     static_configs:
-      - targets: ['localhost:9090']
+      # Use the container name exactly as defined in docker-compose
+      - targets: ['notes_backend_container:8080']
+
+
+
+
+  # - job_name: 'prometheus' # (Prometheus) Not Now
+  #   static_configs:
+  #     - targets: ['localhost:9090']
 
   # # (Loki)  Not Now
   # - job_name: 'loki'
