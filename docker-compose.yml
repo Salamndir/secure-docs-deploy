@@ -172,12 +172,22 @@ services:
   # 7. Observability Stack (All-in-One LGTM)
   # ═══════════════════════════════════════════════════════════
   observability:
-    image: grafana/otel-lgtm:0.19.0 # All-in-One with Grafana, Prometheus, and OpenTelemetry Collector
+    image: grafana/otel-lgtm:0.19.0 # All-in-One with Grafana, Prometheus, Loki, Tempo and OpenTelemetry Collector
     container_name: observability
     ports:
-      # Removed 3000 mapping here because Nginx will handle it securely
-      # - "4318:4318"   # OTLP HTTP port for Spring Boot to push metrics/traces
-      - "127.0.0.1:3100:3100"  # Localhost (127.0.0.1) Exposed temporarily to allow Docker Logging Driver to push logs
+    
+      # --- 🟢 Active Exposed Ports ---
+      - "127.0.0.1:3100:3100"  # Loki: Exposed locally for Docker Logging Driver to push logs directly
+
+      # --- 🛑 Internal Ports (Accessible internally via Nginx proxy_pass) ---
+      # No need to expose these to the host, Nginx handles routing via Docker network
+      
+      # - "3000:3000"   # Grafana: UI Dashboard
+      # - "9090:9090"   # Prometheus: UI & API (for direct metric queries/troubleshooting)
+      # - "3200:3200"   # Tempo: API (for direct trace queries)
+      # - "4317:4317"   # OTel Collector: OTLP gRPC Receiver - we are not using gRPC
+      # - "4318:4318"   # OTel Collector: OTLP HTTP Receiver - We will use OTLP HTTP instead for better compatibility with Keycloak and Spring Boot Micrometer exporters,
+
     volumes:
       # Prometheus config to scrape Keycloak & Node Exporter
       - ./monitoring/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
