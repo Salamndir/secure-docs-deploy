@@ -38,13 +38,13 @@ scrape_configs:
   # 3. Spring Boot Backend (NEW: Pulling classic metrics for Dashboard 4701)
   # =====================================================================
 
-  - job_name: 'spring-boot-metrics'
-    metrics_path: '/actuator/prometheus'
-    static_configs:
-      # Use the container name exactly as defined in docker-compose
-      - targets: ['notes-backend-container:8080']
-        labels:
-          application: 'notes-backend'
+  # - job_name: 'spring-boot-metrics'
+  #   metrics_path: '/actuator/prometheus'
+  #   static_configs:
+  #     # Use the container name exactly as defined in docker-compose
+  #     - targets: ['notes-backend-container:8080']
+  #       labels:
+  #         application: 'notes-backend'
 
 
 
