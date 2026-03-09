@@ -68,7 +68,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
+        loki-url: "http://observability:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
@@ -115,7 +115,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
+        loki-url: "http://observability:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
@@ -162,7 +162,7 @@ services:
     logging:
       driver: "loki"
       options:
-        loki-url: "http://127.0.0.1:3100/loki/api/v1/push"
+        loki-url: "http://observability:3100/loki/api/v1/push"
         loki-retries: "2"
         loki-max-backoff: "800ms"
         loki-timeout: "1s"
@@ -177,7 +177,8 @@ services:
     ports:
     
       # --- 🟢 Active Exposed Ports ---
-      - "127.0.0.1:3100:3100"  # Loki: Exposed locally for Docker Logging Driver to push logs directly
+      # We MUST expose it to the Docker bridge network so the Host's Docker Daemon (Logging Driver) can reach it and push logs.
+      - "3100:3100"  # Loki: Exposed locally for Docker Logging Driver to push logs directly
 
       # --- 🛑 Internal Ports (Accessible internally via Nginx proxy_pass) ---
       # No need to expose these to the host, Nginx handles routing via Docker network
@@ -193,8 +194,13 @@ services:
       - ./monitoring/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
       - lgtm_data:/data # Persist Dashboards and Metrics
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin # CHANGE THIS LATER!
+      - GF_SECURITY_ADMIN_PASSWORD=admin # CHANGE THIS LATER 
+
+      # EXTRA HOSTS (Typically attached to the 'observability' container)
     extra_hosts:
+        # Maps the DNS name "host.docker.internal" to the host machine's actual IP address.
+        # This acts as a bridge, allowing the isolated container to "break out" of the Docker network 
+        # and communicate with services running directly on the Ubuntu Host OS.
       - "host.docker.internal:host-gateway" # Access host network for node-exporter
     restart: unless-stopped
 
@@ -206,13 +212,23 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     command:
+      # Points the exporter to the host's physical root file system
       - '--path.rootfs=/host'
+      # Points to the host's running processes, CPU, and memory info
       - '--path.procfs=/host/proc'
+      # Points to the host's hardware, network, and kernel info
       - '--path.sysfs=/host/sys'
+      # Regex filter: Ignores virtual or Docker-specific temporary file systems 
+      # to prevent collecting duplicate or garbage metrics (like 50 virtual hard drives).
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
     volumes:
+      # Mounts the entire Host OS root directory (/) into the container at (/host).
+      # 'ro' (Read-Only): Critical for security; prevents the container from deleting or modifying host files.
+      # 'rslave' (Recursive Slave): Ensures that if a new drive (e.g., USB or Block Storage) is mounted 
+      # on the host OS later, the container instantly sees it without needing a restart.
       - /:/host:ro,rslave
-    # No ports exposed to internet. Accessible via internal network to 'observability'
+    # Security Note: No ports are mapped to the host (e.g., 9100:9100). 
+    # It remains isolated and is only scraped internally by the 'observability' container.
     restart: unless-stopped
 
 volumes:
